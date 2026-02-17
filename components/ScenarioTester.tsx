@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { User, Search, FileText, CheckCircle2, MessageCircle, ArrowRight } from 'lucide-react';
+import { User, Search, FileText, CheckCircle2, MessageCircle, ArrowRight, History } from 'lucide-react';
 
 export const ScenarioTester: React.FC = () => {
   const [step, setStep] = useState(0);
@@ -20,15 +20,22 @@ export const ScenarioTester: React.FC = () => {
       output: "Status: Awaiting Parts (Shimano Chainring)"
     },
     {
+      title: "History Audit",
+      desc: "Agent checks if the store already texted the customer today.",
+      action: "Call GET /jobs/3820311/messages",
+      icon: <History className="w-5 h-5" />,
+      output: "Log: SMS sent at 9am regarding parts order."
+    },
+    {
       title: "Conversation",
-      desc: "Agent explains the delay and checks if parts are ordered.",
-      action: "Analyze mechanicNotes & Message History",
+      desc: "Agent explains the delay while acknowledging the previous SMS.",
+      action: "Natural Language Synthesis",
       icon: <MessageCircle className="w-5 h-5" />,
-      output: "Agent says: 'We're just waiting on a chainring, should be ready Monday.'"
+      output: "Agent: 'As we texted you this morning, we're still waiting on that chainring...'"
     },
     {
       title: "Action Execution",
-      desc: "Customer asks for a text when it's done.",
+      desc: "Customer asks for an update when parts arrive.",
       action: "Call POST /jobs/3820311/notes",
       icon: <CheckCircle2 className="w-5 h-5" />,
       output: "Success: Internal Note Added"

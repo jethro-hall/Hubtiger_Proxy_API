@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
-import { AlertTriangle, Search, FileText, MessageSquare, BellRing, ClipboardEdit } from 'lucide-react';
+import { AlertTriangle, Search, FileText, MessageSquare, BellRing, ClipboardEdit, History } from 'lucide-react';
 
-type TabType = 'search' | 'details' | 'create' | 'note' | 'notify';
+type TabType = 'search' | 'details' | 'messages' | 'create' | 'note' | 'notify';
 
 export const EndpointVisualizer: React.FC = () => {
   const [activeTab, setActiveTab] = useState<TabType>('search');
@@ -9,6 +9,7 @@ export const EndpointVisualizer: React.FC = () => {
   const tabs: { id: TabType; label: string; icon: React.ReactNode; method: string; path: string }[] = [
     { id: 'search', label: 'Customer Search', icon: <Search className="w-4 h-4" />, method: 'POST', path: '/jobs/search' },
     { id: 'details', label: 'Job Details', icon: <FileText className="w-4 h-4" />, method: 'GET', path: '/jobs/{id}' },
+    { id: 'messages', label: 'Chat History', icon: <History className="w-4 h-4" />, method: 'GET', path: '/jobs/{id}/messages' },
     { id: 'create', label: 'Create Job', icon: <ClipboardEdit className="w-4 h-4" />, method: 'POST', path: '/jobs' },
     { id: 'note', label: 'Add Notes', icon: <MessageSquare className="w-4 h-4" />, method: 'POST', path: '/jobs/{id}/notes' },
     { id: 'notify', label: 'Notifications', icon: <BellRing className="w-4 h-4" />, method: 'POST', path: '/jobs/{id}/notify' },
@@ -63,8 +64,14 @@ export const EndpointVisualizer: React.FC = () => {
 <pre>{`// GET Request
 // Querying by the 'id' returned from search
 {
-  "id": 3820311,
-  "includeMessages": true
+  "id": 3820311
+}`}</pre>
+              )}
+              {activeTab === 'messages' && (
+<pre>{`// GET Request
+// Retrieve full comms audit
+{
+  "id": 3820311
 }`}</pre>
               )}
               {activeTab === 'create' && (
@@ -128,14 +135,35 @@ export const EndpointVisualizer: React.FC = () => {
     "totalCost": 145.50,
     "mechanicNotes": "Waiting on Shimano chainring. Frame cleaned.",
     "isReadyForCollection": false,
-    "recentMessages": [
-      { "from": "Store", "text": "Parts ordered", "date": "..." }
-    ]
+    "bike": "Specialized Tarmac"
   }
 }`}</pre>
               )}
+              {activeTab === 'messages' && (
+<pre>{`{
+  "ok": true,
+  "messages": [
+    {
+      "id": 102931,
+      "type": "sms",
+      "sender": "Store",
+      "text": "Your Specialized Tarmac is in the stand. - Dave",
+      "timestamp": "2023-10-25T09:00:00Z",
+      "direction": "outbound"
+    },
+    {
+      "id": 102935,
+      "type": "sms",
+      "sender": "Customer",
+      "text": "Thanks! Can you check the brake pads too?",
+      "timestamp": "2023-10-25T09:15:00Z",
+      "direction": "inbound"
+    }
+  ]
+}`}</pre>
+              )}
               {/* Default successes for others */}
-              {(activeTab !== 'search' && activeTab !== 'details') && (
+              {(activeTab !== 'search' && activeTab !== 'details' && activeTab !== 'messages') && (
 <pre>{`{
   "ok": true,
   "data": {
@@ -152,8 +180,8 @@ export const EndpointVisualizer: React.FC = () => {
             <div className="flex gap-3">
                 <AlertTriangle className="w-5 h-5 text-indigo-400 shrink-0" />
                 <div className="text-sm text-indigo-200">
-                    <strong>Integration Strategy:</strong> For ElevenLabs, the <code>/jobs/search</code> response is critical. 
-                    If multiple matches are found, the Agent should ask: <i>"I see two jobs, one for a Giant Defy and one for a Trek Domane, which one are you calling about?"</i>
+                    <strong>Integration Strategy:</strong> For ElevenLabs, the <code>/jobs/{activeTab === 'messages' ? '{id}/messages' : 'search'}</code> response is critical. 
+                    {activeTab === 'messages' ? " Use history to avoid asking questions already answered in past texts." : " If multiple matches are found, the Agent should ask for clarification."}
                 </div>
             </div>
         </div>

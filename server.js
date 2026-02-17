@@ -1,4 +1,3 @@
-
 import express from 'express';
 import axios from 'axios';
 import cors from 'cors';
@@ -9,6 +8,7 @@ import 'dotenv/config';
 const app = express();
 app.use(cors());
 app.use(express.json());
+app.set('json spaces', 2);
 
 // Handle __dirname in ES Modules
 const __filename = fileURLToPath(import.meta.url);
@@ -19,22 +19,27 @@ const HUBTIGER_BASE_URL = 'https://api.hubtiger.com/v1';
 const HUBTIGER_API_KEY = process.env.HUBTIGER_API_KEY;
 const INTERNAL_KEY = process.env.INTERNAL_KEY || 'ride-ai-secret-2024';
 
-// Serve frontend files from the current directory
+// Log every request
+app.use((req, res, next) => {
+  console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);
+  next();
+});
+
+// Serve frontend files from current directory
 app.use(express.static(__dirname));
 
-// Middleware: Security Check for API endpoints
+// Middleware: Security Check
 const authCheck = (req, res, next) => {
   const clientKey = req.headers['x-internal-key'];
   if (!clientKey || clientKey !== INTERNAL_KEY) {
-    console.warn(`[AUTH] Unauthorized access attempt from ${req.ip}`);
+    console.warn(`[AUTH] Unauthorized access from ${req.ip}`);
     return res.status(401).json({ ok: false, error: 'Unauthorized: Missing or invalid X-Internal-Key' });
   }
   next();
 };
 
-// API: Search Endpoints
+// API: Search
 app.post('/jobs/search', authCheck, async (req, res) => {
-  console.log(`[API] Search Request: ${JSON.stringify(req.body)}`);
   try {
     const { firstName, lastName, email, phone, allStores = true } = req.body;
     const query = phone || email || `${firstName || ''} ${lastName || ''}`.trim();
@@ -59,15 +64,14 @@ app.post('/jobs/search', authCheck, async (req, res) => {
 
     res.json({ ok: true, matches, count: matches.length });
   } catch (error) {
-    console.error('[ERROR] Hubtiger Search Failed:', error.response?.data || error.message);
+    console.error('[ERROR] Search Failed:', error.message);
     res.status(500).json({ ok: false, error: 'Hubtiger API search failed' });
   }
 });
 
-// API: Detail Endpoint
+// API: Detail
 app.get('/jobs/:id', authCheck, async (req, res) => {
   const { id } = req.params;
-  console.log(`[API] Fetching Details for Job ID: ${id}`);
   try {
     const response = await axios.get(`${HUBTIGER_BASE_URL}/jobs/${id}`, {
       headers: { 'Authorization': `Bearer ${HUBTIGER_API_KEY}` }
@@ -88,29 +92,52 @@ app.get('/jobs/:id', authCheck, async (req, res) => {
       }
     });
   } catch (error) {
-    console.error(`[ERROR] Detail Fetch Failed for ${id}:`, error.message);
     res.status(500).json({ ok: false, error: 'Could not fetch job details' });
   }
 });
 
-// Catch-all route to serve the dashboard for any frontend route
-app.get('*', (req, res) => {
+// API: Message History (Chat History)
+app.get('/jobs/:id/messages', authCheck, async (req, res) => {
+  const { id } = req.params;
+  try {
+    const response = await axios.get(`${HUBTIGER_BASE_URL}/jobs/${id}/messages`, {
+      headers: { 'Authorization': `Bearer ${HUBTIGER_API_KEY}` }
+    });
+    
+    // Transform to a cleaner format for the AI agent
+    const messages = response.data.map(m => ({
+      id: m.id,
+      type: m.type, // 'sms', 'email', etc.
+      sender: m.sender_name || (m.is_inbound ? 'Customer' : 'Store'),
+      text: m.content,
+      timestamp: m.created_at,
+      direction: m.is_inbound ? 'inbound' : 'outbound'
+    }));
+
+    res.json({ ok: true, messages });
+  } catch (error) {
+    console.error('[ERROR] Messages Failed:', error.message);
+    res.status(500).json({ ok: false, error: 'Could not fetch message history' });
+  }
+});
+
+// CATCH-ALL: Safe for Express 5 (no path regex)
+app.use((req, res) => {
   res.sendFile(path.join(__dirname, 'index.html'));
 });
 
 const PORT = process.env.PORT || 8095;
-
 const server = app.listen(PORT, '0.0.0.0', () => {
   console.log('---------------------------------------------');
   console.log(`🚀 RIDEAI PROXY IS LIVE AT PORT ${PORT}`);
   console.log(`🌍 DASHBOARD: http://agents.rideai.com.au:${PORT}`);
-  console.log(`🔑 INTERNAL KEY: ${INTERNAL_KEY}`);
+  console.log(`🔑 HUBTIGER_API_KEY: ${HUBTIGER_API_KEY ? 'CONFIGURED' : 'MISSING'}`);
   console.log('---------------------------------------------');
 });
 
 server.on('error', (e) => {
   if (e.code === 'EADDRINUSE') {
-    console.error(`❌ Port ${PORT} is busy. Clearing it now...`);
+    console.error(`❌ Port ${PORT} busy. Use: sudo kill -9 $(lsof -t -i:${PORT})`);
     process.exit(1);
   }
 });

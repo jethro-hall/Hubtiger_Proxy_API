@@ -1,9 +1,9 @@
 import React from 'react';
-import { ProjectOverview } from './components/ProjectOverview';
-import { EndpointVisualizer } from './components/EndpointVisualizer';
-import { ScenarioTester } from './components/ScenarioTester';
-import { LiveApiTester } from './components/LiveApiTester';
-import { DeploymentGuide } from './components/DeploymentGuide';
+import { ProjectOverview } from './components/ProjectOverview.tsx';
+import { EndpointVisualizer } from './components/EndpointVisualizer.tsx';
+import { ScenarioTester } from './components/ScenarioTester.tsx';
+import { LiveApiTester } from './components/LiveApiTester.tsx';
+import { DeploymentGuide } from './components/DeploymentGuide.tsx';
 
 export default function App() {
   return (
