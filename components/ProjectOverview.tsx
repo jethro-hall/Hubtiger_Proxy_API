@@ -1,5 +1,5 @@
 import React from 'react';
-import { ProjectPhase, EndpointMethod, EndpointDef, Requirement, AgentWorkflowStep } from '../types';
+import { ProjectPhase, EndpointMethod, EndpointDef, Requirement, AgentWorkflowStep } from '../types.ts';
 import { LayoutDashboard, CheckCircle, AlertTriangle, Network, ShieldAlert, Clock, Folder, FileCode, Server, Layers } from 'lucide-react';
 
 const endpoints: EndpointDef[] = [
