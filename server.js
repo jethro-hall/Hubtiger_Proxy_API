@@ -1,95 +1,72 @@
 import express from 'express';
 import axios from 'axios';
 import cors from 'cors';
-import path from 'path';
-import { fileURLToPath } from 'url';
 import 'dotenv/config';
 
 const app = express();
 app.use(cors());
 app.use(express.json());
 
-// Resolve paths
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-const ROOT = __dirname;
-
-// Hubtiger Config
-const HUBTIGER_BASE_URL = 'https://api.hubtiger.com/v1'; 
+const HUBTIGER_BASE_URL = process.env.HUBTIGER_BASE_URL || 'https://api.hubtiger.com/v1';
 const HUBTIGER_API_KEY = process.env.HUBTIGER_API_KEY;
-const INTERNAL_KEY = process.env.INTERNAL_KEY || 'ride-ai-secret-2024';
+const INTERNAL_KEY = process.env.INTERNAL_KEY;
 
-// Middleware: Console Logger
-app.use((req, res, next) => {
-  console.log(`[${new Date().toLocaleTimeString()}] ${req.method} ${req.url}`);
-  next();
-});
+if (!INTERNAL_KEY) {
+  console.error('FATAL: INTERNAL_KEY must be set');
+  process.exit(1);
+}
 
-// Middleware: Auth
 const authCheck = (req, res, next) => {
-  const clientKey = req.headers['x-internal-key'];
-  if (!clientKey || clientKey !== INTERNAL_KEY) {
+  if (req.headers['x-internal-key'] !== INTERNAL_KEY) {
     return res.status(401).json({ ok: false, error: 'Unauthorized' });
   }
   next();
 };
 
-// --- PROXY ENDPOINTS ---
+const hub = axios.create({
+  baseURL: HUBTIGER_BASE_URL,
+  headers: { Authorization: `Bearer ${HUBTIGER_API_KEY}` }
+});
 
-app.post('/jobs/search', authCheck, async (req, res) => {
+app.get('/health', (req, res) => {
+  res.json({ ok: true, service: 'hubtiger-proxy', ts: Date.now() });
+});
+
+const safe = (p) => p.replace(/[^a-zA-Z0-9_/.-]/g, '');
+
+const proxy = (method, path) => async (req, res) => {
   try {
-    const { phone, email, firstName, lastName } = req.body;
-    const query = phone || email || `${firstName || ''} ${lastName || ''}`.trim();
-    
-    if (!query) return res.status(400).json({ ok: false, error: 'Query required' });
-
-    // In a real scenario, we'd hit Hubtiger. For this boilerplate, we'll return a sample or hit the API if configured.
-    if (HUBTIGER_API_KEY) {
-      const response = await axios.get(`${HUBTIGER_BASE_URL}/jobs/search`, {
-        params: { q: query, all_stores: true },
-        headers: { 'Authorization': `Bearer ${HUBTIGER_API_KEY}` }
-      });
-      const matches = response.data.map(job => ({
-        id: job.id,
-        jobCardNo: job.job_card_number,
-        customerName: job.customer ? `${job.customer.first_name} ${job.customer.last_name}` : 'Unknown',
-        bike: job.bike ? `${job.bike.make} ${job.bike.model}` : 'Unknown',
-        status: job.status?.name || 'Unknown'
-      }));
-      return res.json({ ok: true, matches });
-    }
-
-    // Mock response if no API key present for testing the UI
-    res.json({ ok: true, matches: [
-      { id: 12345, jobCardNo: '031-A', customerName: 'Demo Customer', bike: 'Specialized Tarmac', status: 'Awaiting Parts' }
-    ]});
-  } catch (error) {
-    console.error('Search Error:', error.message);
-    res.status(500).json({ ok: false, error: error.message });
+    const r = await hub.request({
+      method,
+      url: safe(path),
+      params: method === 'get' ? req.query : undefined,
+      data: method !== 'get' ? req.body : undefined
+    });
+    res.json({ ok: true, data: r.data });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: 'Hubtiger upstream error' });
   }
-});
+};
 
-// --- STATIC FILES ---
+// Jobs
+app.post('/jobs/search', authCheck, proxy('get', '/jobs/search'));
+app.post('/job/get', authCheck, proxy('get', '/jobs'));
+app.post('/job/note/add', authCheck, proxy('post', '/jobs/notes'));
 
-// Serve everything in the root
-app.use(express.static(ROOT, {
-  setHeaders: (res, filePath) => {
-    // Ensure TSX files are treated as JS for the browser
-    if (filePath.endsWith('.tsx') || filePath.endsWith('.ts')) {
-      res.setHeader('Content-Type', 'application/javascript');
-    }
-  }
-}));
+// Booking
+app.post('/booking/availability', authCheck, proxy('get', '/bookings/availability'));
+app.post('/booking/create', authCheck, proxy('post', '/bookings'));
+app.post('/booking/edit', authCheck, proxy('put', '/bookings'));
 
-// SPA Catch-all
-app.get('*', (req, res) => {
-  res.sendFile(path.join(ROOT, 'index.html'));
-});
+// Quotes
+app.post('/quote/preview-price', authCheck, proxy('post', '/quotes/preview'));
+app.post('/quote/add-line-item', authCheck, proxy('post', '/quotes/items'));
+app.post('/quote/request-approval-sms', authCheck, proxy('post', '/quotes/send'));
+
+// Products
+app.post('/products/search', authCheck, proxy('get', '/products'));
 
 const PORT = process.env.PORT || 8095;
 app.listen(PORT, '0.0.0.0', () => {
-  console.log('---------------------------------------------');
-  console.log(`🚀 RIDEAI PROXY HUB IS LIVE`);
-  console.log(`🌍 URL: http://agents.rideai.com.au:${PORT}`);
-  console.log('---------------------------------------------');
+  console.log(`proxy running on ${PORT}`);
 });
